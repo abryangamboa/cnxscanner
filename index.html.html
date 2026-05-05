@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Badge Scanner — Concentrix Events</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --accent: #00e5a0;
+    --accent2: #ff6b35;
+    --warn: #ffcc00;
+    --red: #ff4444;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --card: #16161f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+  .logo span { color: var(--text); }
+  .event-badge-pill {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    background: rgba(0,229,160,0.12);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(0,229,160,0.25);
+  }
+
+  /* ─── MAIN ─── */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding-bottom: 24px;
+  }
+
+  /* ─── TABS ─── */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    padding: 14px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* ─── PANELS ─── */
+  .panel { display: none; padding: 20px; }
+  .panel.active { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ─── UPLOAD ZONE ─── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--card);
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(0,229,160,0.04); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-label { font-size: 14px; color: var(--muted); }
+  .upload-label strong { color: var(--accent); }
+  .roster-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: none;
+  }
+  .roster-status.visible { display: block; }
+
+  /* ─── CAMERA ─── */
+  .camera-wrapper {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 3/4;
+    max-height: 52vh;
+  }
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .camera-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .scan-frame {
+    width: 72%;
+    height: 38%;
+    border: 2px solid var(--accent);
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+    position: relative;
+  }
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scanline 2s ease-in-out infinite;
+    top: 0;
+  }
+  @keyframes scanline {
+    0% { top: 0%; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+  .frame-hint {
+    color: var(--accent);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    margin-top: 12px;
+    text-align: center;
+    letter-spacing: 0.5px;
+    opacity: 0.8;
+  }
+  .camera-placeholder {
+    border-radius: 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    aspect-ratio: 3/4;
+    max-height: 52vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .camera-placeholder .icon { font-size: 40px; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.2px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+  .btn-secondary {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-danger {
+    background: rgba(255,68,68,0.12);
+    color: var(--red);
+    border: 1px solid rgba(255,68,68,0.25);
+  }
+
+  /* ─── RESULT CARD ─── */
+  .result-card {
+    border-radius: 14px;
+    padding: 18px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    animation: fadeUp 0.3s ease;
+  }
+  .result-card.visible { display: flex; }
+  .result-card.match {
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.3);
+  }
+  .result-card.no-match {
+    background: rgba(255,68,68,0.08);
+    border: 1px solid rgba(255,68,68,0.3);
+  }
+  .result-card.duplicate {
+    background: rgba(255,204,0,0.08);
+    border: 1px solid rgba(255,204,0,0.3);
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .result-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .result-card.match .result-status { color: var(--accent); }
+  .result-card.no-match .result-status { color: var(--red); }
+  .result-card.duplicate .result-status { color: var(--warn); }
+  .result-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .result-meta {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .result-meta span { display: flex; gap: 6px; }
+  .result-meta .label { color: var(--muted); min-width: 60px; }
+  .result-meta .value { color: var(--text); }
+  .ocr-raw {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.03);
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  /* ─── MANUAL INPUT ─── */
+  .input-group { display: flex; flex-direction: column; gap: 6px; }
+  .input-label { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .text-input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border 0.2s;
+    width: 100%;
+  }
+  .text-input:focus { border-color: var(--accent); }
+  .text-input::placeholder { color: var(--muted); }
+
+  /* ─── LOG ─── */
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .log-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .log-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+  .log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+  .log-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .log-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .log-dot.match { background: var(--accent); }
+  .log-dot.no-match { background: var(--red); }
+  .log-dot.duplicate { background: var(--warn); }
+  .log-info { flex: 1; min-width: 0; }
+  .log-name { font-size: 14px; font-weight: 500; truncate: ellipsis; white-space: nowrap; overflow: hidden; }
+  .log-detail { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .log-time { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); flex-shrink: 0; }
+  .empty-log {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 40px 20px;
+  }
+  .empty-log .icon { font-size: 32px; margin-bottom: 8px; }
+
+  /* ─── EXPORT ─── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+  }
+  .stat-num.green { color: var(--accent); }
+  .stat-num.red { color: var(--red); }
+  .stat-num.yellow { color: var(--warn); }
+  .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  canvas { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CNX<span> Events</span></div>
+  <div class="event-badge-pill" id="eventName">Sin evento</div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('setup')">⚙ Setup</div>
+  <div class="tab" onclick="switchTab('scan')">📷 Scan</div>
+  <div class="tab" onclick="switchTab('manual')">✏ Manual</div>
+  <div class="tab" onclick="switchTab('log')">📋 Log</div>
+</div>
+
+<main>
+  <!-- ══ SETUP TAB ══ -->
+  <div id="tab-setup" class="panel active">
+    <div class="input-group">
+      <div class="input-label">NOMBRE DEL EVENTO</div>
+      <input class="text-input" id="eventNameInput" placeholder="Ej: Town Hall Mayo 2025" oninput="updateEventName()">
+    </div>
+
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="rosterFile" accept=".xlsx,.csv" onchange="handleRosterUpload(event)">
+      <div class="upload-icon">📊</div>
+      <div class="upload-label">Sube el roster <strong>Excel o CSV</strong><br>con columnas First Name, Last Name, Employee ID</div>
+    </div>
+
+    <div class="roster-status" id="rosterStatus"></div>
+
+    <button class="btn btn-primary" onclick="switchTab('scan')" id="startBtn" disabled>
+      Iniciar escaneo →
+    </button>
+  </div>
+
+  <!-- ══ SCAN TAB ══ -->
+  <div id="tab-scan" class="panel">
+    <div id="cameraPlaceholder" class="camera-placeholder">
+      <div class="icon">📷</div>
+      <div>Activa la cámara para escanear</div>
+    </div>
+    <div id="cameraWrapper" class="camera-wrapper" style="display:none">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
+      <div class="camera-overlay">
+        <div class="scan-frame"><div class="scan-line"></div></div>
+        <div class="frame-hint">Centra el nombre del gafete</div>
+      </div>
+    </div>
+
+    <div class="result-card" id="resultCard">
+      <div class="result-status" id="resultStatus"></div>
+      <div class="result-name" id="resultName"></div>
+      <div class="result-meta" id="resultMeta"></div>
+      <div class="ocr-raw" id="ocrRaw"></div>
+    </div>
+
+    <button class="btn btn-primary" id="cameraBtn" onclick="toggleCamera()">Activar cámara</button>
+    <button class="btn btn-secondary" id="captureBtn" onclick="captureAndProcess()" style="display:none">📸 Capturar gafete</button>
+  </div>
+
+  <!-- ══ MANUAL TAB ══ -->
+  <div id="tab-manual" class="panel">
+    <div class="input-group">
+      <div class="input-label">NOMBRE DEL EMPLEADO</div>
+      <input class="text-input" id="manualInput" placeholder="Ej: Angel Gamboa" oninput="liveSearch()">
+    </div>
+
+    <div id="manualSuggestions" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+    <div class="result-card" id="manualResult"></div>
+  </div>
+
+  <!-- ══ LOG TAB ══ -->
+  <div id="tab-log" class="panel">
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-num green" id="statMatch">0</div>
+        <div class="stat-label">Registrados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num yellow" id="statDup">0</div>
+        <div class="stat-label">Duplicados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num red" id="statNoMatch">0</div>
+        <div class="stat-label">No encontrado</div>
+      </div>
+    </div>
+
+    <div class="log-header">
+      <div class="log-title">Registro de asistencia</div>
+      <div class="log-count" id="logCount">0 entradas</div>
+    </div>
+
+    <div class="log-list" id="logList">
+      <div class="empty-log">
+        <div class="icon">📋</div>
+        <div>Sin registros aún</div>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" onclick="exportCSV()" id="exportBtn" style="margin-top:8px">⬇ Exportar CSV</button>
+    <button class="btn btn-danger" onclick="clearLog()" style="margin-top:4px">🗑 Limpiar log</button>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+
+<script>
+// ─── STATE ───
+let roster = [];
+let attendanceLog = [];
+let stream = null;
+let cameraActive = false;
+let tesseractWorker = null;
+
+// ─── TAB NAVIGATION ───
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const tabs = ['setup','scan','manual','log'];
+  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+}
+
+// ─── EVENT NAME ───
+function updateEventName() {
+  const name = document.getElementById('eventNameInput').value.trim();
+  document.getElementById('eventName').textContent = name || 'Sin evento';
+}
+
+// ─── ROSTER UPLOAD ───
+function handleRosterUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      // Find the actual header row: the one that contains "First Name"
+      const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      let headerRowIdx = rawRows.findIndex(r => r.some(cell => typeof cell === 'string' && cell.trim() === 'First Name'));
+      if (headerRowIdx < 0) headerRowIdx = 0;
+      const headers = rawRows[headerRowIdx];
+      const rows = rawRows.slice(headerRowIdx + 1).map(r => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = r[i] ?? ''; });
+        return obj;
+      });
+
+      roster = rows
+        .filter(r => r['First Name'] || r['FirstName'] || r['first_name'])
+        .map(r => {
+          const first = (r['First Name'] || r['FirstName'] || r['first_name'] || '').toString().trim();
+          const last  = (r['Last Name']  || r['LastName']  || r['last_name']  || '').toString().trim();
+          const id    = (r['Employee ID'] || r['EmployeeID'] || r['employee_id'] || '').toString().trim();
+          const loc   = (r['Location'] || '').toString().trim();
+          const title = (r['Job Title'] || '').toString().trim();
+          const active = (r['Currently Active'] || '').toString().toLowerCase();
+          return { first, last, id, loc, title, active, fullName: `${first} ${last}`.trim() };
+        })
+        .filter(r => r.first);
+
+      const activeCount = roster.filter(r => r.active === 'yes').length;
+      document.getElementById('rosterStatus').innerHTML =
+        `✓ Roster cargado — <strong>${roster.length}</strong> empleados (${activeCount} activos)`;
+      document.getElementById('rosterStatus').classList.add('visible');
+      document.getElementById('startBtn').disabled = false;
+    } catch (err) {
+      alert('Error leyendo el archivo. Verifica que sea .xlsx o .csv con columnas First Name / Last Name / Employee ID');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── FUZZY MATCH ───
+function normalize(str) {
+  return str.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, '').trim();
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function matchName(query) {
+  if (!query || roster.length === 0) return null;
+  const q = normalize(query);
+  const qWords = q.split(' ').filter(Boolean);
+
+  let best = null, bestScore = Infinity;
+
+  for (const emp of roster) {
+    const full = normalize(emp.fullName);
+    const fullWords = full.split(' ').filter(Boolean);
+
+    // Word overlap score
+    const matchedWords = qWords.filter(qw => fullWords.some(fw => levenshtein(qw, fw) <= 1));
+    const overlap = matchedWords.length / Math.max(qWords.length, 1);
+
+    // Full name distance
+    const dist = levenshtein(q, full);
+    const score = dist - (overlap * 5); // reward word matches
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = { emp, score, dist, overlap };
+    }
+  }
+
+  // Accept if good enough
+  if (best && (best.overlap >= 0.5 || best.dist <= 4)) return best.emp;
+  return null;
+}
+
+function searchTop(query, n = 5) {
+  if (!query || roster.length === 0) return [];
+  const q = normalize(query);
+  const qWords = q.split(' ').filter(Boolean);
+
+  return roster
+    .map(emp => {
+      const full = normalize(emp.fullName);
+      const fullWords = full.split(' ').filter(Boolean);
+      const matchedWords = qWords.filter(qw => fullWords.some(fw => levenshtein(qw, fw) <= 1));
+      const overlap = matchedWords.length / Math.max(qWords.length, 1);
+      const dist = levenshtein(q, full);
+      return { emp, score: dist - overlap * 5 };
+    })
+    .sort((a, b) => a.score - b.score)
+    .slice(0, n)
+    .map(x => x.emp);
+}
+
+// ─── REGISTER ATTENDANCE ───
+function registerAttendance(emp, source, ocrText = '') {
+  const already = attendanceLog.find(e => e.id === emp.id);
+  const time = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+  if (already) {
+    showResult('scan', 'duplicate', `${emp.fullName}`, emp, ocrText, 'Ya registrado');
+    addLog('duplicate', emp.fullName, `ID ${emp.id} · Duplicado`, time);
+    updateStats();
+    return;
+  }
+
+  attendanceLog.push({ ...emp, time, source });
+  showResult('scan', 'match', emp.fullName, emp, ocrText, '✓ Registrado');
+  addLog('match', emp.fullName, `ID ${emp.id} · ${emp.title || emp.loc}`, time);
+  updateStats();
+}
+
+// ─── SHOW RESULT ───
+function showResult(panel, type, name, emp, ocrText, status) {
+  const card = document.getElementById(panel === 'scan' ? 'resultCard' : 'manualResult');
+  card.className = `result-card ${type} visible`;
+
+  if (panel === 'scan') {
+    document.getElementById('resultStatus').textContent = status;
+    document.getElementById('resultName').textContent = name;
+    document.getElementById('resultMeta').innerHTML = emp ? `
+      <span><span class="label">ID</span><span class="value">${emp.id}</span></span>
+      <span><span class="label">Título</span><span class="value">${emp.title || '—'}</span></span>
+      <span><span class="label">Location</span><span class="value">${emp.loc || '—'}</span></span>
+    ` : '';
+    document.getElementById('ocrRaw').textContent = ocrText ? `OCR: "${ocrText}"` : '';
+  } else {
+    card.innerHTML = `
+      <div class="result-status">${status}</div>
+      <div class="result-name">${name}</div>
+      ${emp ? `<div class="result-meta">
+        <span><span class="label">ID</span><span class="value">${emp.id}</span></span>
+        <span><span class="label">Título</span><span class="value">${emp.title || '—'}</span></span>
+        <span><span class="label">Location</span><span class="value">${emp.loc || '—'}</span></span>
+      </div>` : ''}
+      ${emp ? `<button class="btn btn-primary" style="margin-top:4px" onclick="registerFromManual('${emp.id}')">✓ Registrar</button>` : ''}
+    `;
+  }
+}
+
+// ─── CAMERA ───
+async function toggleCamera() {
+  if (cameraActive) {
+    stopCamera();
+    return;
+  }
+
+  if (roster.length === 0) {
+    alert('Primero carga un roster en Setup.');
+    return;
+  }
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+
+    document.getElementById('cameraPlaceholder').style.display = 'none';
+    document.getElementById('cameraWrapper').style.display = 'block';
+    document.getElementById('cameraBtn').textContent = '⏹ Detener cámara';
+    document.getElementById('captureBtn').style.display = 'block';
+    cameraActive = true;
+
+    // Init Tesseract
+    if (!tesseractWorker) {
+      tesseractWorker = await Tesseract.createWorker('spa+eng');
+    }
+  } catch (err) {
+    alert('No se pudo acceder a la cámara. Verifica los permisos.');
+  }
+}
+
+function stopCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  document.getElementById('cameraWrapper').style.display = 'none';
+  document.getElementById('cameraPlaceholder').style.display = 'flex';
+  document.getElementById('cameraBtn').textContent = 'Activar cámara';
+  document.getElementById('captureBtn').style.display = 'none';
+  cameraActive = false;
+}
+
+async function captureAndProcess() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+
+  document.getElementById('captureBtn').textContent = '⏳ Procesando...';
+  document.getElementById('captureBtn').disabled = true;
+
+  try {
+    const { data: { text } } = await tesseractWorker.recognize(canvas);
+    const cleaned = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    const match = matchName(cleaned);
+
+    if (match) {
+      registerAttendance(match, 'camera', cleaned);
+    } else {
+      document.getElementById('resultCard').className = 'result-card no-match visible';
+      document.getElementById('resultStatus').textContent = 'No encontrado';
+      document.getElementById('resultName').textContent = 'Sin coincidencia';
+      document.getElementById('resultMeta').innerHTML = '';
+      document.getElementById('ocrRaw').textContent = `OCR: "${cleaned}"`;
+      addLog('no-match', 'Sin match', cleaned.slice(0, 40), new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
+      updateStats();
+    }
+  } catch (err) {
+    alert('Error en OCR. Intenta de nuevo con mejor iluminación.');
+  }
+
+  document.getElementById('captureBtn').textContent = '📸 Capturar gafete';
+  document.getElementById('captureBtn').disabled = false;
+}
+
+// ─── MANUAL SEARCH ───
+function liveSearch() {
+  const q = document.getElementById('manualInput').value.trim();
+  const suggestionsEl = document.getElementById('manualSuggestions');
+  document.getElementById('manualResult').className = 'result-card';
+
+  if (q.length < 2) { suggestionsEl.innerHTML = ''; return; }
+
+  const results = searchTop(q, 5);
+  suggestionsEl.innerHTML = results.map(emp => `
+    <div onclick="selectEmployee('${emp.id}')" style="
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border 0.15s;
+    " onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:14px;font-weight:500">${emp.fullName}</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${emp.id} · ${emp.title || emp.loc || '—'}</div>
+    </div>
+  `).join('');
+}
+
+function selectEmployee(id) {
+  const emp = roster.find(e => e.id === id);
+  if (!emp) return;
+  document.getElementById('manualSuggestions').innerHTML = '';
+  document.getElementById('manualInput').value = emp.fullName;
+  showResult('manual', 'match', emp.fullName, emp, '', '✓ Encontrado');
+}
+
+function registerFromManual(id) {
+  const emp = roster.find(e => e.id === id);
+  if (!emp) return;
+  registerAttendance(emp, 'manual');
+  document.getElementById('manualInput').value = '';
+  document.getElementById('manualResult').className = 'result-card';
+  switchTab('log');
+}
+
+// ─── LOG ───
+function addLog(type, name, detail, time) {
+  const list = document.getElementById('logList');
+  const empty = list.querySelector('.empty-log');
+  if (empty) empty.remove();
+
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  item.innerHTML = `
+    <div class="log-dot ${type}"></div>
+    <div class="log-info">
+      <div class="log-name">${name}</div>
+      <div class="log-detail">${detail}</div>
+    </div>
+    <div class="log-time">${time}</div>
+  `;
+  list.prepend(item);
+  document.getElementById('logCount').textContent = attendanceLog.length + ' entradas';
+}
+
+function updateStats() {
+  const matched = attendanceLog.length;
+  const noMatch = document.querySelectorAll('.log-dot.no-match').length;
+  const dup = document.querySelectorAll('.log-dot.duplicate').length;
+  document.getElementById('statMatch').textContent = matched;
+  document.getElementById('statNoMatch').textContent = noMatch;
+  document.getElementById('statDup').textContent = dup;
+}
+
+function clearLog() {
+  if (!confirm('¿Limpiar todos los registros?')) return;
+  attendanceLog = [];
+  document.getElementById('logList').innerHTML = '<div class="empty-log"><div class="icon">📋</div><div>Sin registros aún</div></div>';
+  document.getElementById('logCount').textContent = '0 entradas';
+  updateStats();
+}
+
+// ─── EXPORT ───
+function exportCSV() {
+  if (attendanceLog.length === 0) { alert('No hay registros para exportar.'); return; }
+  const event = document.getElementById('eventNameInput').value || 'evento';
+  const header = 'Nombre,Employee ID,Título,Locación,Hora,Fuente\n';
+  const rows = attendanceLog.map(e =>
+    `"${e.fullName}","${e.id}","${e.title}","${e.loc}","${e.time}","${e.source}"`
+  ).join('\n');
+  const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `asistencia_${event.replace(/\s/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
