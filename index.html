@@ -491,7 +491,6 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 
 <script>
 // ─── STATE ───
@@ -499,7 +498,7 @@ let roster = [];
 let attendanceLog = [];
 let stream = null;
 let cameraActive = false;
-let tesseractWorker = null;
+
 
 // ─── TAB NAVIGATION ───
 function switchTab(name) {
@@ -699,11 +698,6 @@ async function toggleCamera() {
     document.getElementById('cameraBtn').textContent = '⏹ Detener cámara';
     document.getElementById('captureBtn').style.display = 'block';
     cameraActive = true;
-
-    // Init Tesseract
-    if (!tesseractWorker) {
-      tesseractWorker = await Tesseract.createWorker('spa+eng');
-    }
   } catch (err) {
     alert('No se pudo acceder a la cámara. Verifica los permisos.');
   }
@@ -730,23 +724,55 @@ async function captureAndProcess() {
   document.getElementById('captureBtn').disabled = true;
 
   try {
-    const { data: { text } } = await tesseractWorker.recognize(canvas);
-    const cleaned = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    // Convert canvas to base64
+    const base64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+
+    // Call Claude Vision API
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 100,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
+            },
+            {
+              type: 'text',
+              text: 'This is a photo of an employee badge. Extract ONLY the person\'s full name printed on the badge. Return just the name, nothing else. If you cannot find a name, return "NO_NAME".'
+            }
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    const cleaned = (data.content?.[0]?.text || '').trim();
+
+    if (cleaned === 'NO_NAME' || !cleaned) {
+      throw new Error('No name found');
+    }
+
     const match = matchName(cleaned);
 
     if (match) {
       registerAttendance(match, 'camera', cleaned);
     } else {
       document.getElementById('resultCard').className = 'result-card no-match visible';
-      document.getElementById('resultStatus').textContent = 'No encontrado';
-      document.getElementById('resultName').textContent = 'Sin coincidencia';
-      document.getElementById('resultMeta').innerHTML = '';
-      document.getElementById('ocrRaw').textContent = `OCR: "${cleaned}"`;
-      addLog('no-match', 'Sin match', cleaned.slice(0, 40), new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
+      document.getElementById('resultStatus').textContent = 'No encontrado en roster';
+      document.getElementById('resultName').textContent = cleaned;
+      document.getElementById('resultMeta').innerHTML = '<span style="color:var(--muted);font-size:12px">Nombre leído pero sin match — usa Manual</span>';
+      document.getElementById('ocrRaw').textContent = `Leído: "${cleaned}"`;
+      addLog('no-match', cleaned, 'Sin match en roster', new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
       updateStats();
     }
   } catch (err) {
-    alert('Error en OCR. Intenta de nuevo con mejor iluminación.');
+    alert('Error procesando imagen. Verifica tu conexión e intenta de nuevo.');
+    console.error(err);
   }
 
   document.getElementById('captureBtn').textContent = '📸 Capturar gafete';
